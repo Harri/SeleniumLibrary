@@ -44,12 +44,7 @@ BROWSER_NAMES = NormalizedDict({
     'android': "_make_android",
     'iphone': "_make_iphone",
     'safari': "_make_safari",
-    'edge': "_make_edge",
-    'headlessfirefox': '_make_headless_ff',
-    'headlessff': '_make_headless_ff',
-    'headlessgooglechrome': '_make_headless_chrome',
-    'headlessgc': '_make_headless_chrome',
-    'headlesschrome': '_make_headless_chrome'
+    'edge': "_make_edge"
 })
 
 
@@ -444,84 +439,123 @@ class BrowserManagementKeywords(LibraryComponent):
                      profile_dir=None, remote=None, headless=False):
         creation_func = self._get_driver_creation_function(browser_name)
 
-        if is_truthy(headless):
-            try:
-                options = webdriver.FirefoxOptions()
-                options.set_headless()
-            except AttributeError:
-                print('asdfasdfasdfasdfasdfdsa')
-                options = None
-        else:
-            options = None
-
-        driver = creation_func(remote, desired_capabilities, profile_dir, options=options)
+        driver = creation_func(remote, desired_capabilities, profile_dir, headless)
         driver.set_script_timeout(self.ctx.timeout)
         driver.implicitly_wait(self.ctx.implicit_wait)
         if self.ctx.speed:
             self._monkey_patch_speed(driver)
         return driver
 
-    def _make_ff(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_ff(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.FirefoxOptions()
+            options.set_headless()
+        else:
+            options = None
         if is_falsy(profile_dir):
             profile = webdriver.FirefoxProfile()
         else:
             profile = webdriver.FirefoxProfile(profile_dir)
         if is_truthy(remote):
-            driver = self._create_remote_web_driver(
-                webdriver.DesiredCapabilities.FIREFOX, remote,
-                desired_capabilities, profile, options=options)
+            if options is None:
+                driver = self._create_remote_web_driver(
+                    webdriver.DesiredCapabilities.FIREFOX, remote,
+                    desired_capabilities, profile)
+            else:
+                driver = self._create_remote_web_driver(
+                    webdriver.DesiredCapabilities.FIREFOX, remote,
+                    desired_capabilities, profile, options=options)
         else:
-            driver = webdriver.Firefox(firefox_profile=profile,
-                                       options=options,
-                                       **self._geckodriver_log_config)
+            if options is None:
+                driver = webdriver.Firefox(firefox_profile=profile,
+                                           **self._geckodriver_log_config)
+            else:
+                driver = webdriver.Firefox(firefox_profile=profile,
+                                           options=options,
+                                           **self._geckodriver_log_config)
         return driver
 
-    def _make_ie(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_ie(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.IeOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Ie, webdriver.DesiredCapabilities.INTERNETEXPLORER,
             remote, desired_capabilities, options=options)
 
-    def _make_chrome(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_chrome(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.ChromeOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Chrome, webdriver.DesiredCapabilities.CHROME, remote,
             desired_capabilities, options=options)
 
-    def _make_opera(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_opera(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.OperaOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Opera, webdriver.DesiredCapabilities.OPERA, remote,
             desired_capabilities, options=options)
 
-    def _make_phantomjs(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_phantomjs(self, remote, desired_capabilities, profile_dir, headless=True):
         return self._generic_make_driver(
             webdriver.PhantomJS, webdriver.DesiredCapabilities.PHANTOMJS,
-            remote, desired_capabilities, options=options)
+            remote, desired_capabilities)
 
-    def _make_htmlunit(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_htmlunit(self, remote, desired_capabilities, profile_dir, headless=True):
         return self._generic_make_driver(
             webdriver.Remote, webdriver.DesiredCapabilities.HTMLUNIT, remote,
-            desired_capabilities, options=options)
+            desired_capabilities)
 
-    def _make_htmlunitwithjs(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_htmlunitwithjs(self, remote, desired_capabilities, profile_dir, headless=True):
         return self._generic_make_driver(
             webdriver.Remote, webdriver.DesiredCapabilities.HTMLUNITWITHJS,
-            remote, desired_capabilities, options=options)
+            remote, desired_capabilities)
 
-    def _make_android(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_android(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.AndroidOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Remote, webdriver.DesiredCapabilities.ANDROID, remote,
             desired_capabilities, options=options)
 
-    def _make_iphone(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_iphone(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.IphoneOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Remote, webdriver.DesiredCapabilities.IPHONE, remote,
             desired_capabilities, options=options)
 
-    def _make_safari(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_safari(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.SafariOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Safari, webdriver.DesiredCapabilities.SAFARI, remote,
             desired_capabilities, options=options)
 
-    def _make_edge(self, remote, desired_capabilities, profile_dir, options=None):
+    def _make_edge(self, remote, desired_capabilities, profile_dir, headless=False):
+        if is_truthy(headless):
+            options = webdriver.EdgeOptions()
+            options.set_headless()
+        else:
+            options = None
         return self._generic_make_driver(
             webdriver.Edge, webdriver.DesiredCapabilities.EDGE, remote,
             desired_capabilities, options=options)
@@ -539,7 +573,11 @@ class BrowserManagementKeywords(LibraryComponent):
             else:
                 driver = webdriver_type(options=options)
         else:
-            driver = self._create_remote_web_driver(desired_cap_type,
+            if options is None:
+                driver = self._create_remote_web_driver(desired_cap_type,
+                                                    remote_url, desired_caps)
+            else:
+                driver = self._create_remote_web_driver(desired_cap_type,
                                                     remote_url, desired_caps,
                                                     options=options)
         return driver
@@ -554,9 +592,14 @@ class BrowserManagementKeywords(LibraryComponent):
         if not isinstance(desired_capabilities, dict):
             desired_capabilities = self._parse_capabilities_string(desired_capabilities)
         desired_capabilities_object.update(desired_capabilities or {})
-        return webdriver.Remote(desired_capabilities=desired_capabilities_object,
-                command_executor=str(remote_url), browser_profile=profile,
-                options=options)
+        if options is None:
+            driver = webdriver.Remote(desired_capabilities=desired_capabilities_object,
+                    command_executor=str(remote_url), browser_profile=profile)
+        else:
+            driver = webdriver.Remote(desired_capabilities=desired_capabilities_object,
+                    command_executor=str(remote_url), browser_profile=profile,
+                    options=options)
+        return driver
 
     def _parse_capabilities_string(self, capabilities_string):
         '''parses the string based desired_capabilities which should be in the form
