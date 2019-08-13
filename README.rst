@@ -10,11 +10,11 @@ SeleniumLibrary_ is a web testing library for `Robot Framework`_ that
 utilizes the Selenium_ tool internally. The project is hosted on GitHub_
 and downloads can be found from PyPI_.
 
-SeleniumLibrary works with Selenium 2.53.6 or newer, including Selenium 3.
-It supports Python 2.7 as well as Python 3.3 or newer. In addition to the
-normal Python_ interpreter, it works also with PyPy_ and Jython_. Unfortunately
-Selenium_ is not currently supported by IronPython_ and thus this library
-does not work with IronPython either.
+SeleniumLibrary works with Selenium 3. It supports Python 2.7 as well as
+Python 3.4 or newer. In addition to the normal Python_ interpreter, it
+works also with PyPy_ and Jython_. Unfortunately Selenium_ is not
+currently supported by IronPython_ and thus this library does not work with
+IronPython either.
 
 SeleniumLibrary is based on the `old SeleniumLibrary`_ that was forked to
 Selenium2Library_ and then later renamed back to SeleniumLibrary.
@@ -25,10 +25,10 @@ different versions and the overall project history.
    :target: https://pypi.python.org/pypi/robotframework-seleniumlibrary
 
 .. image:: https://img.shields.io/pypi/l/robotframework-seleniumlibrary.svg
-   :target: http://www.apache.org/licenses/LICENSE-2.0
+   :target: https://www.apache.org/licenses/LICENSE-2.0
 
 .. image:: https://api.travis-ci.org/robotframework/SeleniumLibrary.png
-   :target: http://travis-ci.org/robotframework/SeleniumLibrary
+   :target: https://travis-ci.org/robotframework/SeleniumLibrary
 
 Keyword documentation
 ---------------------
@@ -61,11 +61,15 @@ To install the last legacy Selenium2Library_ version, use this command instead::
 
     pip install robotframework-selenium2library==1.8.0
 
-An alternative to using ``pip`` is getting the project source code either
-from a source distribution at PyPI_ or by cloning the GitHub_ repository,
-and installing the code using ``python setup.py install``. This approach
-does not install Selenium or other dependencies, so they need to be installed
-separately.
+With resent versions of ``pip`` it is possible to install directly from the
+GitHub_ repository. To install latest source from the master branch, use
+this command::
+
+    pip install git+https://github.com/robotframework/SeleniumLibrary.git
+
+Please note that installation will take some time, because ``pip`` will
+clone the SeleniumLibrary_ project to a temporary directory and then
+perform the installation.
 
 See `Robot Framework installation instructions`_ for detailed information
 about installing Python and Robot Framework itself. For more details about
@@ -89,8 +93,24 @@ New browser driver versions are released to support features in
 new browsers, fix bug, or otherwise, and you need to keep an eye on them
 to know when to update drivers you use.
 
+Alternatively, you can use a tool called WebdriverManager__ which can
+find the latest version or when required, any version of appropriate
+webdrivers for you and then download and link/copy it into right
+location. Tool can run on all major operating systems and supports
+downloading of Chrome, Firefox, Opera & Edge webdrivers.
+
+Here's an example:
+
+.. code:: bash
+
+      pip install webdrivermanager
+      webdrivermanager firefox chrome --linkpath /usr/local/bin
+
+
+
 __ https://seleniumhq.github.io/selenium/docs/api/py/index.html#drivers
 __ https://en.wikipedia.org/wiki/PATH_(variable)
+__ https://github.com/omenia/webdrivermanager
 
 Usage
 -----
@@ -156,6 +176,20 @@ See the demo for more examples that you can also execute on your own
 machine. For more information about Robot Framework test data syntax in
 general see the `Robot Framework User Guide`_.
 
+Extending SeleniumLibrary
+-------------------------
+Before creating your own library which extends the ``SeleniumLibrary``, please consider would
+the extension be also useful also for general usage. If it could be useful also for general
+usage, please create a new issue describing the enhancement request and even better if the
+issue is backed up by a pull request.
+
+If the enhancement is not generally useful, example solution is domain specific, then the
+SeleniumLibrary offers a public API's which can be used to build own plugins and libraries.
+Plugin API allows to add new keywords, modify existing keywords and modify internal
+functionality of the library. Also new libraries can be build on top of the
+SeleniumLibrary. Please see `extending documentation`_ for more details about the
+available methods and for examples how the library can be extended.
+
 Support
 -------
 
@@ -178,14 +212,16 @@ different Selenium and Python versions. This is summarized in the table
 below and the History_ section afterwards explains the project history
 a bit more.
 
-==================================  ================  ===================  ===============
-             Project                Selenium Version    Python Version         Comment
-==================================  ================  ===================  ===============
-SeleniumLibrary 2.9.2 and earlier   Selenium 1 and 2  Python 2.5-2.7       The original SeleniumLibrary using Selenium RC API.
-Selenium2Library 1.8.0 and earlier  Selenium 2 and 3  Python 2.6-2.7       Fork of SeleniumLibrary using Selenium WebDriver API.
-SeleniumLibrary 3.0 and newer       Selenium 2 and 3  Python 2.7 and 3.3+  Selenium2Library renamed and with Python 3 support and new architecture.
-Selenium2Library 3.0 and newer      Selenium 2 and 3  Python 2.7 and 3.3+  Thin wrapper for SeleniumLibrary 3.0 to ease transition.
-==================================  ================  ===================  ===============
+==================================  ==========================  ==========================  ===============
+             Project                     Selenium Version             Python Version         Comment
+==================================  ==========================  ==========================  ===============
+SeleniumLibrary 2.9.2 and earlier   Selenium 1 and 2            Python 2.5-2.7              The original SeleniumLibrary using Selenium RC API.
+Selenium2Library 1.8.0 and earlier  Selenium 2 and 3            Python 2.6-2.7              Fork of SeleniumLibrary using Selenium WebDriver API.
+SeleniumLibrary 3.0 and 3.1         Selenium 2 and 3            Python 2.7 and 3.3+         Selenium2Library renamed and with Python 3 support and new architecture.
+SeleniumLibrary 3.2                 Selenium 3                  Python 2.7 and 3.4+         Drops Selenium 2 support.
+SeleniumLibrary 4.0                 Selenium 3                  Python 2.7 and 3.4+         Plugin API and support for event friging webdriver.
+Selenium2Library 3.0                Depends on SeleniumLibrary  Depends on SeleniumLibrary  Thin wrapper for SeleniumLibrary 3.0 to ease transition.
+==================================  ==========================  ==========================  ===============
 
 History
 -------
@@ -226,23 +262,24 @@ SeleniumLibrary. This decision basically meant following changes:
 Going forward, all new development will happen in the new SeleniumLibrary
 project.
 
-.. _Robot Framework: http://robotframework.org
-.. _Selenium: http://seleniumhq.org
+.. _Robot Framework: https://robotframework.org
+.. _Selenium: https://seleniumhq.org
 .. _SeleniumLibrary: https://github.com/robotframework/SeleniumLibrary
 .. _Selenium2Library: https://github.com/robotframework/Selenium2Library
 .. _Old SeleniumLibrary: https://github.com/robotframework/OldSeleniumLibrary
 .. _pip: http://pip-installer.org
 .. _PyPI: https://pypi.python.org/pypi/robotframework-seleniumlibrary
 .. _GitHub: https://github.com/robotframework/SeleniumLibrary
-.. _Keyword Documentation: http://robotframework.org/SeleniumLibrary/SeleniumLibrary.html
-.. _Python: http://python.org
-.. _PyPy: http://pypy.org
-.. _Jython: http://jython.org
-.. _IronPython: http://ironpython.net
-.. _demo project: https://bitbucket.org/robotframework/webdemo
-.. _Robot Framework User Guide: http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html
+.. _Keyword Documentation: https://robotframework.org/SeleniumLibrary/SeleniumLibrary.html
+.. _Python: https://python.org
+.. _PyPy: https://pypy.org
+.. _Jython: https://jython.org/
+.. _IronPython: https://ironpython.net/
+.. _demo project: https://github.com/robotframework/WebDemo
+.. _Robot Framework User Guide: https://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html
 .. _Robot Framework installation instructions: https://github.com/robotframework/robotframework/blob/master/INSTALL.rst
-.. _robotframework-users: http://groups.google.com/group/robotframework-users
+.. _robotframework-users: https://groups.google.com/group/robotframework-users
+.. _extending documentation: https://github.com/robotframework/SeleniumLibrary/blob/master/docs/extending/extending.rst
 .. _Slack community: https://robotframework-slack-invite.herokuapp.com
 .. _issue tracker: https://github.com/robotframework/SeleniumLibrary/issues
-.. _Other support forums: http://robotframework.org/#support
+.. _Other support forums: https://robotframework.org/#support

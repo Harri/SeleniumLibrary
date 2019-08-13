@@ -1,9 +1,11 @@
 language: python
 sudo: required
 dist: trusty
+env:
+  global:
+    - JYTHON=false
+    - GRID=False
 addons:
-  firefox: latest
-  # firefox: latest-esr
   apt:
     sources:
       - google-chrome
@@ -11,59 +13,81 @@ addons:
       - google-chrome-stable
 before_install:
   - CDVERSION=`curl http://chromedriver.storage.googleapis.com/LATEST_RELEASE`
+  - echo $CDVERSION
   - wget --no-verbose http://chromedriver.storage.googleapis.com/$CDVERSION/chromedriver_linux64.zip
   - unzip chromedriver_linux64.zip
   - sudo chmod u+x chromedriver
   - sudo mv chromedriver /usr/bin/
-  # Firefox latest
-  - FDVERSION=`curl -s -L https://github.com/mozilla/geckodriver/releases/latest | grep -E href=\"\(.*\)geckodriver-v\(.*\)-linux64.tar.gz\"`
-  - VFILE=`echo $FDVERSION | sed -E "s/^.*<a href=\"/https:\/\/github.com/" -- | sed -E "s/\" rel=\"nofollow\">//" --`
-  # Firefox latest-esr
-  # - VFILE=https://github.com//mozilla/geckodriver/releases/download/v0.17.0/geckodriver-v0.17.0-linux64.tar.gz
-  - wget --no-verbose $VFILE
-  - tar xzf geckodriver*-linux64.tar.gz
-  - sudo chmod u+x geckodriver
-  - sudo mv geckodriver /usr/bin/
-install:
-  - pip install .
-  - pip install -r requirements.txt
-  - pip install -r requirements-dev.txt
 matrix:
   include:
+    - python: "3.7-dev"
+      env:
+        - BROWSER=headlesschrome
+        - SELENIUM=3.141.0
+        - ROBOTFRAMEWORK=3.1.2
+        - ROBOT_OPTIONS=--dotted
+        - INTERPRETER=python3
+    - python: "pypy3.5"
+      env:
+        - BROWSER=chrome
+        - SELENIUM=3.141.0
+        - ROBOTFRAMEWORK=3.1.2
+        - ROBOT_OPTIONS=--dotted
+        - INTERPRETER=pypy3
     - python: "3.6"
       env:
-        - BROWSER=chrome
-        - SELENIUM=3.8.0
-        - ROBOTFRAMEWORK=3.0.2
+        - BROWSER=headlesschrome
+        - SELENIUM=3.141.0
+        - ROBOTFRAMEWORK=3.1.2
         - ROBOT_OPTIONS=--dotted
+        - INTERPRETER=python3
+        - JYTHON=true
+    - python: "3.4"
+      env:
+        - BROWSER=headlesschrome
+        - SELENIUM=3.141.0
+        - ROBOTFRAMEWORK=3.1.2
+        - ROBOT_OPTIONS=--dotted
+        - INTERPRETER=python3
     - python: "2.7"
       env:
         - BROWSER=chrome
-        - SELENIUM=2.53.6
-        - ROBOTFRAMEWORK=2.9.2
+        - SELENIUM=3.141.0
+        - ROBOTFRAMEWORK=3.0.4
         - ROBOT_OPTIONS=--dotted
-    - python: "2.7"
+        - INTERPRETER=python2
+    - python: "3.7-dev"
       env:
-        - BROWSER=chrome
-        - SELENIUM=3.8.0
-        - ROBOTFRAMEWORK=2.8.7
-        - ROBOT_OPTIONS=
-    - python: "3.3"
-      env:
-        - BROWSER=chrome
-        - SELENIUM=2.53.6
-        - ROBOTFRAMEWORK=3.0.2
+        - BROWSER=headlesschrome
+        - SELENIUM=3.141.0
+        - ROBOTFRAMEWORK=3.1.2
         - ROBOT_OPTIONS=--dotted
-    - python: "3.3"
-      env:
-        - BROWSER=firefox
-        - SELENIUM=3.8.0
-        - ROBOTFRAMEWORK=3.0.2
-        - ROBOT_OPTIONS="--exclude Known_Issue_Firefox --dotted"
+        - INTERPRETER=python3
+        - GRID=true
 before_script:
   - "export DISPLAY=:99.0"
   - "sh -e /etc/init.d/xvfb start"
-  - pip install selenium==$SELENIUM
-  - pip install robotframework==$ROBOTFRAMEWORK
+  - if [ "$JYTHON" == "true" ]; then
+      wget -O jython.jar http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1/jython-installer-2.7.1.jar;
+      java -jar jython.jar -s -d ~/jython;
+      export PATH="~/jython/bin:$PATH";
+      export INTERPRETER=~/jython/bin/jython;
+    fi
+  - echo $INTERPRETER
+  - $INTERPRETER --version
+  - $INTERPRETER -m pip install .
+  - if [ "$JYTHON" == "true" ]; then
+      $INTERPRETER -m pip install mockito;
+      python -m pip install requests;
+      python -m pip install robotstatuschecker;
+    else
+      $INTERPRETER -m pip install -r requirements-dev.txt;
+    fi
+  - if [ "$GRID" == "true" ]; then
+      wget --output-document=./selenium-server-standalone.jar http://selenium-release.storage.googleapis.com/3.141/selenium-server-standalone-3.141.59.jar;
+      sudo chmod u+x ./selenium-server-standalone.jar;
+    fi
+  - $INTERPRETER -m pip install selenium==$SELENIUM
+  - $INTERPRETER -m pip install robotframework==$ROBOTFRAMEWORK
 script:
-  - python test/run_tests.py $BROWSER $ROBOT_OPTIONS
+  - python atest/run.py $BROWSER --interpreter $INTERPRETER --grid $GRID $ROBOT_OPTIONS

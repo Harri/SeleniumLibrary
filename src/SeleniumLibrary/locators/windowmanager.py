@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from collections import namedtuple
 
-from robot.api import logger
 from selenium.common.exceptions import (NoSuchWindowException,
                                         WebDriverException)
 
@@ -29,13 +29,6 @@ WindowInfo = namedtuple('WindowInfo', 'handle, id, name, title, url')
 
 
 class WindowManager(ContextAware):
-    _deprecated_locators = {
-        None: 'main',
-        'null': 'main',
-        '': 'main',
-        'popup': 'new',
-        'self': 'current'
-    }
 
     def __init__(self, ctx):
         ContextAware.__init__(self, ctx)
@@ -61,8 +54,16 @@ class WindowManager(ContextAware):
                 self.driver.switch_to.window(starting_handle)
         return infos
 
-    def select(self, locator):
-        locator = self._handle_deprecated_locators(locator)
+    def select(self, locator, timeout=0):
+        while True:
+            try:
+                return self._select(locator)
+            except WindowNotFound:
+                if time.time() > timeout:
+                    raise
+                time.sleep(0.1)
+
+    def _select(self, locator):
         if not is_string(locator):
             self._select_by_excludes(locator)
         elif locator.upper() == 'CURRENT':
@@ -74,17 +75,6 @@ class WindowManager(ContextAware):
         else:
             strategy, locator = self._parse_locator(locator)
             self._strategies[strategy](locator)
-
-    def _handle_deprecated_locators(self, locator):
-        if not (is_string(locator) or locator is None):
-            return locator
-        normalized = locator.lower() if is_string(locator) else locator
-        if normalized in self._deprecated_locators:
-            new = self._deprecated_locators[normalized]
-            logger.warn("Using '%s' as window locator is deprecated. "
-                        "Use '%s' instead." % (locator, new))
-            return new
-        return locator
 
     def _parse_locator(self, locator):
         index = self._get_locator_separator_index(locator)

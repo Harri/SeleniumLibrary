@@ -14,13 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
+from collections import namedtuple
+from inspect import isclass
 
 from robot.api import logger
+from robot.errors import DataError
 from robot.libraries.BuiltIn import BuiltIn
+from robot.utils.importer import Importer
 
-from SeleniumLibrary.base import DynamicCore
-from SeleniumLibrary.errors import NoOpenBrowser
+from SeleniumLibrary.base import DynamicCore, LibraryComponent
+from SeleniumLibrary.errors import NoOpenBrowser, PluginError
 from SeleniumLibrary.keywords import (AlertKeywords,
                                       BrowserManagementKeywords,
                                       CookieKeywords,
@@ -33,13 +36,13 @@ from SeleniumLibrary.keywords import (AlertKeywords,
                                       SelectElementKeywords,
                                       TableElementKeywords,
                                       WaitingKeywords,
+                                      WebDriverCache,
                                       WindowKeywords)
 from SeleniumLibrary.locators import ElementFinder
-from SeleniumLibrary.utils import (Deprecated, LibraryListener, timestr_to_secs,
-                                   WebDriverCache)
+from SeleniumLibrary.utils import LibraryListener, timestr_to_secs, is_truthy
 
 
-__version__ = '3.0.1.dev1'
+__version__ = '4.0.0a3.dev1'
 
 
 class SeleniumLibrary(DynamicCore):
@@ -52,7 +55,9 @@ class SeleniumLibrary(DynamicCore):
 
     SeleniumLibrary uses the Selenium WebDriver modules internally to
     control a web browser. See http://seleniumhq.org for more information
-    about Selenium in general.
+    about Selenium in general and SeleniumLibrary README.rst
+    [https://github.com/robotframework/SeleniumLibrary#browser-drivers|Browser drivers chapter]
+    for more details about WebDriver binary installation.
 
     == Table of contents ==
 
@@ -60,6 +65,9 @@ class SeleniumLibrary(DynamicCore):
     - `Timeouts, waits and delays`
     - `Run-on-failure functionality`
     - `Boolean arguments`
+    - `Plugins`
+    - `EventFiringWebDriver`
+    - `Thread support`
     - `Importing`
     - `Shortcuts`
     - `Keywords`
@@ -129,8 +137,8 @@ class SeleniumLibrary(DynamicCore):
     | dom          | DOM expression.                     | ``dom:document.images[5]``     |
     | link         | Exact text a link has.              | ``link:The example``           |
     | partial link | Partial link text.                  | ``partial link:he ex``         |
-    | sizzle       | Sizzle selector provided by jQuery. | ``sizzle:div.example``         |
-    | jquery       | Same as the above.                  | ``jquery:div.example``         |
+    | sizzle       | Sizzle selector deprecated.         | ``sizzle:div.example``         |
+    | jquery       | jQuery expression.                  | ``jquery:div.example``         |
     | default      | Keyword specific default behavior.  | ``default:example``            |
 
     See the `Default locator strategy` section below for more information
@@ -195,13 +203,13 @@ class SeleniumLibrary(DynamicCore):
     locators is a two part process. First, create a keyword that returns
     a WebElement that should be acted on:
 
-    | Custom Locator Strategy | [Arguments] | ${browser} | ${strategy} | ${tag} | ${constraints} |
-    |   | ${element}= | Execute Javascript | return window.document.getElementById('${criteria}'); |
+    | Custom Locator Strategy | [Arguments] | ${browser} | ${locator} | ${tag} | ${constraints} |
+    |   | ${element}= | Execute Javascript | return window.document.getElementById('${locator}'); |
     |   | [Return] | ${element} |
 
     This keyword is a reimplementation of the basic functionality of the
     ``id`` locator where ``${browser}`` is a reference to a WebDriver
-    instance and ``${strategy}`` is name of the locator strategy. To use
+    instance and ``${locator}`` is name of the locator strategy. To use
     this locator it must first be registered by using the
     `Add Location Strategy` keyword:
 
@@ -227,7 +235,10 @@ class SeleniumLibrary(DynamicCore):
     SeleniumLibrary contains various keywords that have an optional
     ``timeout`` argument that specifies how long these keywords should
     wait for certain events or actions. These keywords include, for example,
-    ``Wait ...`` keywords and keywords related to alerts.
+    ``Wait ...`` keywords and keywords related to alerts. Additionally
+    `Execute Async Javascript`. although it does not have ``timeout``,
+    argument, uses timeout to define how long asynchronous JavaScript
+    can run.
 
     The default timeout these keywords use can be set globally either by
     using the `Set Selenium Timeout` keyword or with the ``timeout`` argument
@@ -239,7 +250,7 @@ class SeleniumLibrary(DynamicCore):
     Implicit wait specifies the maximum time how long Selenium waits when
     searching for elements. It can be set by using the `Set Selenium Implicit
     Wait` keyword or with the ``implicit_wait`` argument when `importing`
-    the library. See [http://seleniumhq.org/docs/04_webdriver_advanced.html|
+    the library. See [https://www.seleniumhq.org/docs/04_webdriver_advanced.jsp|
     Selenium documentation] for more information about this functionality.
 
     See `time format` below for supported syntax.
@@ -279,10 +290,10 @@ class SeleniumLibrary(DynamicCore):
 
     Some keywords accept arguments that are handled as Boolean values true or
     false. If such an argument is given as a string, it is considered false if
-    it is either empty or case-insensitively equal to ``false``, ``no`` or
-    ``none``. Other strings are considered true regardless their value, and
+    it is either empty or case-insensitively equal to ``false``, ``no``, ``off``,
+     ``0`` or ``none``. Other strings are considered true regardless their value, and
     other argument types are tested using same
-    [https://docs.python.org/2/library/stdtypes.html#truth-value-testing|rules as in Python].
+    [https://docs.python.org/3/library/stdtypes.html#truth-value-testing|rules as in Python].
 
     True examples:
 
@@ -301,14 +312,43 @@ class SeleniumLibrary(DynamicCore):
     | `Set Screenshot Directory` | ${RESULTS} | persist=${NONE}  | # Python None is false.         |
 
     Note that prior to SeleniumLibrary 3.0, all non-empty strings, including
-    ``false``, ``no`` and ``none``, were considered true.
+    ``false``, ``no`` and ``none``, were considered true. Starting from
+    SeleniumLibrary 4.0, strings ``0`` and ``off`` are considered as false.
+
+    = Plugins =
+
+    SeleniumLibrary offers plugins as a way to modify and add library keywords and modify some of the internal
+    functionality without creating new library or hacking the source code. See
+    [https://github.com/robotframework/SeleniumLibrary/blob/master/docs/extending/extending.rst#Plugins|plugin API]
+    documentation for further details.
+
+    Plugin API is new SeleniumLibrary 4.0
+
+    = EventFiringWebDriver =
+
+    The SeleniumLibrary offers support for
+    [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_support/selenium.webdriver.support.event_firing_webdriver.html#module-selenium.webdriver.support.event_firing_webdriver|EventFiringWebDriver].
+    See the Selenium and SeleniumLibrary
+    [https://github.com/robotframework/SeleniumLibrary/blob/master/docs/extending/extending.rst#EventFiringWebDriver|EventFiringWebDriver support]
+    documentation for futher details.
+
+    EventFiringWebDriver is new in SeleniumLibrary 4.0
+
+    = Thread support =
+
+    SeleniumLibrary is not thread safe. This is mainly due because the underlying
+    [https://github.com/SeleniumHQ/selenium/wiki/Frequently-Asked-Questions#q-is-webdriver-thread-safe|
+    Selenium tool is not thread safe] within one browser/driver instance.
+    Because of the limitation in the Selenium side, the keywords or the
+    API provided by the SeleniumLibrary is not thread safe.
     """
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
     ROBOT_LIBRARY_VERSION = __version__
 
     def __init__(self, timeout=5.0, implicit_wait=0.0,
                  run_on_failure='Capture Page Screenshot',
-                 screenshot_root_directory=None):
+                 screenshot_root_directory=None, plugins=None,
+                 event_firing_webdriver=None):
         """SeleniumLibrary can be imported with several optional arguments.
 
         - ``timeout``:
@@ -320,6 +360,11 @@ class SeleniumLibrary(DynamicCore):
         - ``screenshot_root_directory``:
           Location where possible screenshots are created. If not given,
           the directory where the log file is written is used.
+        - ``plugins``:
+          Allows extending the SeleniumLibrary with external Python classes.
+        - ``event_firing_webdriver``:
+          Class for wrapping Selenium with
+          [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_support/selenium.webdriver.support.event_firing_webdriver.html#module-selenium.webdriver.support.event_firing_webdriver|EventFiringWebDriver]
         """
         self.timeout = timestr_to_secs(timeout)
         self.implicit_wait = timestr_to_secs(implicit_wait)
@@ -328,6 +373,8 @@ class SeleniumLibrary(DynamicCore):
             = RunOnFailureKeywords.resolve_keyword(run_on_failure)
         self._running_on_failure_keyword = False
         self.screenshot_root_directory = screenshot_root_directory
+        self._element_finder = ElementFinder(self)
+        self._plugin_keywords = []
         libraries = [
             AlertKeywords(self),
             BrowserManagementKeywords(self),
@@ -343,24 +390,33 @@ class SeleniumLibrary(DynamicCore):
             WaitingKeywords(self),
             WindowKeywords(self)
         ]
+        if is_truthy(plugins):
+            plugin_libs = self._parse_plugins(plugins)
+            libraries = libraries + plugin_libs
         self._drivers = WebDriverCache()
         DynamicCore.__init__(self, libraries)
         self.ROBOT_LIBRARY_LISTENER = LibraryListener()
-        self._element_finder = ElementFinder(self)
-
-    _speed_in_secs = Deprecated('_speed_in_secs', 'speed')
-    _timeout_in_secs = Deprecated('_timeout_in_secs', 'timeout')
-    _implicit_wait_in_secs = Deprecated('_implicit_wait_in_secs',
-                                        'implicit_wait')
-    _run_on_failure_keyword = Deprecated('_run_on_failure_keyword',
-                                         'run_on_failure_keyword')
+        if is_truthy(event_firing_webdriver):
+            self.event_firing_webdriver = self._parse_listener(event_firing_webdriver)
+        else:
+            self.event_firing_webdriver = None
+        self._running_keyword = None
 
     def run_keyword(self, name, args, kwargs):
+        self._running_keyword = name
         try:
             return DynamicCore.run_keyword(self, name, args, kwargs)
         except Exception:
             self.failure_occurred()
             raise
+        finally:
+            self._running_keyword = None
+
+    def get_keyword_tags(self, name):
+        tags = list(DynamicCore.get_keyword_tags(self, name))
+        if name in self._plugin_keywords:
+            tags.append('plugin')
+        return tags
 
     def register_driver(self, driver, alias):
         """Add's a `driver` to the library WebDriverCache.
@@ -403,13 +459,6 @@ class SeleniumLibrary(DynamicCore):
             raise NoOpenBrowser('No browser is open.')
         return self._drivers.current
 
-    @property
-    def browser(self):
-        # TODO: Remove after 3.0 RC1 release.
-        warnings.warn('"SeleniumLibrary.browser" is deprecated, '
-                      'use "SeleniumLibrary.driver".', DeprecationWarning)
-        return self.driver
-
     def find_element(self, locator, parent=None):
         """Find element matching `locator`.
 
@@ -440,20 +489,56 @@ class SeleniumLibrary(DynamicCore):
         return self._element_finder.find(locator, first_only=False,
                                          required=False, parent=parent)
 
-    @property
-    def _cache(self):
-        warnings.warn('"SeleniumLibrary._cache" is deprecated, '
-                      'use public API instead.', DeprecationWarning)
-        return self._drivers
+    def _parse_plugins(self, plugins):
+        libraries = []
+        importer = Importer('test library')
+        for parsed_plugin in self._string_to_modules(plugins):
+            plugin = importer.import_class_or_module(parsed_plugin.module)
+            if not isclass(plugin):
+                message = "Importing test library: '%s' failed." % parsed_plugin.module
+                raise DataError(message)
+            plugin = plugin(self, *parsed_plugin.args,
+                            **parsed_plugin.kw_args)
+            if not isinstance(plugin, LibraryComponent):
+                message = 'Plugin does not inherit SeleniumLibrary.base.LibraryComponent'
+                raise PluginError(message)
+            self._store_plugin_keywords(plugin)
+            libraries.append(plugin)
+        return libraries
 
-    def _current_browser(self):
-        warnings.warn('"SeleniumLibrary._current_browser" is deprecated, '
-                      'use "SeleniumLibrary.driver" instead.',
-                      DeprecationWarning)
-        return self.driver
+    def _parse_listener(self, event_firing_webdriver):
+        listener_module = self._string_to_modules(event_firing_webdriver)
+        listener_count = len(listener_module )
+        if listener_count > 1:
+            message = 'Is is possible import only one listener but there was %s listeners.' % listener_count
+            raise ValueError(message)
+        listener_module = listener_module[0]
+        importer = Importer('test library')
+        listener = importer.import_class_or_module(listener_module.module)
+        if not isclass(listener):
+            message = "Importing test Selenium lister class '%s' failed." % listener_module.module
+            raise DataError(message)
+        return listener
 
-    def _run_on_failure(self):
-        warnings.warn('"SeleniumLibrary._run_on_failure" is deprecated, '
-                      'use "SeleniumLibrary.failure_occurred" instead.',
-                      DeprecationWarning)
-        self.failure_occurred()
+    def _string_to_modules(self, modules):
+        Module = namedtuple('Module', 'module, args, kw_args')
+        parsed_modules = []
+        for module in modules.split(','):
+            module = module.strip()
+            module_and_args = module.split(';')
+            module_name = module_and_args.pop(0)
+            kw_args = {}
+            args = []
+            for argument in module_and_args:
+                if '=' in argument:
+                    key, value = argument.split('=')
+                    kw_args[key] = value
+                else:
+                    args.append(argument)
+            module = Module(module=module_name, args=args, kw_args=kw_args)
+            parsed_modules.append(module)
+        return parsed_modules
+
+    def _store_plugin_keywords(self, plugin):
+        dynamic_core = DynamicCore([plugin])
+        self._plugin_keywords.extend(dynamic_core.get_keyword_names())

@@ -14,40 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os.path
 import time
 import types
 
-from robot.utils import NormalizedDict
 from selenium import webdriver
+from selenium.webdriver.support.event_firing_webdriver import EventFiringWebDriver
 
 from SeleniumLibrary.base import keyword, LibraryComponent
 from SeleniumLibrary.locators import WindowManager
-from SeleniumLibrary.utils import (is_falsy, is_truthy, secs_to_timestr,
-                                   timestr_to_secs, SELENIUM_VERSION)
+from SeleniumLibrary.utils import (is_truthy, is_noney, secs_to_timestr,
+                                   timestr_to_secs)
 
-
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-FIREFOX_PROFILE_DIR = os.path.join(ROOT_DIR, 'resources', 'firefoxprofile')
-BROWSER_NAMES = NormalizedDict({
-    'ff': "_make_ff",
-    'firefox': "_make_ff",
-    'ie': "_make_ie",
-    'internetexplorer': "_make_ie",
-    'googlechrome': "_make_chrome",
-    'gc': "_make_chrome",
-    'chrome': "_make_chrome",
-    'opera': "_make_opera",
-    'phantomjs': "_make_phantomjs",
-    'htmlunit': "_make_htmlunit",
-    'htmlunitwithjs': "_make_htmlunitwithjs",
-    'android': "_make_android",
-    'iphone': "_make_iphone",
-    'safari': "_make_safari",
-    'edge': "_make_edge",
-    'headlessfirefox': '_make_headless_ff',
-    'headlesschrome': '_make_headless_chrome'
-})
+from .webdrivertools import WebDriverCreator
 
 
 class BrowserManagementKeywords(LibraryComponent):
@@ -80,7 +58,7 @@ class BrowserManagementKeywords(LibraryComponent):
     @keyword
     def open_browser(self, url, browser='firefox', alias=None,
                      remote_url=False, desired_capabilities=None,
-                     ff_profile_dir=None):
+                     ff_profile_dir=None, options=None, service_log_path=None):
         """Opens a new browser instance to the given ``url``.
 
         The ``browser`` argument specifies which browser to use, and the
@@ -110,18 +88,25 @@ class BrowserManagementKeywords(LibraryComponent):
         and require Selenium 3.8.0 or newer.
 
         Optional ``alias`` is an alias given for this browser instance and
-        it can be used for switching between browsers. An alternative
-        approach for switching is using an index returned by this keyword.
-        These indices start from 1, are incremented when new browsers are
-        opened, and reset back to 1 when `Close All Browsers` is called.
-        See `Switch Browser` for more information and examples.
+        it can be used for switching between browsers. When same ``alias``
+        is given with two `Open Browser` keywords, the first keyword will
+        open new browser. But the second one will switch to the already
+        opened browser and will not open new browser. The ``alias``
+        definition overrules ``browser`` definition. When same ``alias``
+        is used but different ``browser`` is defined, then switch to
+        browser with same alias is done and new browser is not opened.
+        An alternative approach for switching is using an index returned
+        by this keyword. These indices start from 1, are incremented when new
+        browsers are opened, and reset back to 1 when `Close All Browsers`
+        is called. See `Switch Browser` for more information and examples.
 
-        Optional ``remote_url`` is the URL for a remote Selenium server. If
-        you specify a value for a remote, you can also specify
-        ``desired_capabilities`` to configure, for example, a proxy server
-        for Internet Explorer or a browser and operating system when using
-        [http://saucelabs.com|Sauce Labs]. Desired capabilities can be given
-        either as a Python dictionary or as a string in format
+        Optional ``remote_url`` is the URL for a
+        [https://github.com/SeleniumHQ/selenium/wiki/Grid2|Selenium Grid].
+
+        Optional ``desired_capabilities`` can be used to configure, for example,
+        logging preferences for a browser or a browser and operating system
+        when using [http://saucelabs.com|Sauce Labs]. Desired capabilities can
+        be given either as a Python dictionary or as a string in format
         ``key1:value1,key2:value2``.
         [https://github.com/SeleniumHQ/selenium/wiki/DesiredCapabilities|
         Selenium documentation] lists possible capabilities that can be
@@ -130,25 +115,140 @@ class BrowserManagementKeywords(LibraryComponent):
         Optional ``ff_profile_dir`` is the path to the Firefox profile
         directory if you wish to overwrite the default profile Selenium
         uses. Notice that prior to SeleniumLibrary 3.0, the library
-        contained its own profile that was used by default.
+        contained its own profile that was used by default. The
+        ``ff_profile_dir`` can also be instance of the
+        [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_firefox/selenium.webdriver.firefox.firefox_profile.html?highlight=firefoxprofile#selenium.webdriver.firefox.firefox_profile.FirefoxProfile|selenium.webdriver.FirefoxProfile].
+
+        Optional ``options`` argument allows to define browser specific
+        Selenium options. Example for Chrome, the ``options`` argument
+        allows defining the following
+        [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_chrome/selenium.webdriver.chrome.options.html#selenium.webdriver.chrome.options.Options|methods and attributes]
+        and for Firefox these
+        [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_firefox/selenium.webdriver.firefox.options.html?highlight=firefox#selenium.webdriver.firefox.options.Options|methods and attributes]
+        are available. Please note that not all browsers supported by the
+        SeleniumLibrary have Selenium options available. Therefore please
+        consult the Selenium documentation which browsers do support
+        the Selenium options. If ``browser`` argument is `android` then
+        [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_chrome/selenium.webdriver.chrome.options.html#selenium.webdriver.chrome.options.Options|Chrome options]
+        is used. Selenium options are also supported, when ``remote_url``
+        argument is used.
+
+        The SeleniumLibrary ``options`` argument accepts Selenium
+        options in two different formats: as a string and as Python object
+        which is an instance of the Selenium options class.
+
+        The string format allows to define Selenium options methods
+        or attributes and their arguments in Robot Framework test data.
+        The method and attributes names are case and space sensitive and
+        must match to the Selenium options methods and attributes names.
+        When defining a method, is must defined in similar way as in
+        python: method name, opening parenthesis, zero to many arguments
+        and closing parenthesis. If there is need to define multiple
+        arguments for a single method, arguments must be separated with
+        comma, just like in Python. Example: `add_argument("--headless")`
+        or `add_experimental_option("key", "value")`. Attributes are
+        defined in similar way as in Python: attribute name, equal sing
+        and attribute value. Example, `headless=True`. Multiple methods
+        and attributes must separated by a semicolon, example:
+        `add_argument("--headless");add_argument("--start-maximized")`.
+
+        Arguments allow defining Python data types and arguments are
+        evaluated by using Python
+        [https://docs.python.org/3/library/ast.html#ast.literal_eval|ast.literal_eval].
+        Strings must be quoted with single or double quotes, example "value"
+        or 'value'. It is also possible define other Python builtin
+        data types, example `True` or `None`, by not using quotes
+        around the arguments.
+
+        The string format is space friendly and usually spaces do not alter
+        the defining the methods or attributes. There are two exceptions.
+        In some Robot Framework test data formats, two or more spaces are
+        considered as cell separator and instead of defining a single
+        argument, two or more arguments may be defined. Spaces in string
+        arguments are not removed and are left as is. Example
+        `add_argument ( "--headless" )` is same as
+        `add_argument("--headless")`. But `add_argument(" --headless ")` is
+        not same same as `add_argument ( "--headless" )`, because
+        spaces inside of quotes are not removed.
+
+        As last format ``options`` argument also support receiving
+        the Selenium options as Python class instance. In this case, the
+        instance is used as is and the SeleniumLibrary will not convert
+        the instance to other formats.
+        For example, if the following code return value is saved to
+        `${options}` variable in the Robot Framework data:
+        | options = webdriver.ChromeOptions()
+        | options.add_argument('--disable-dev-shm-usage')
+        | return options
+
+        Then the `${options}` variable can be used as argument to
+        ``options``.
+
+        Optional ``service_log_path`` argument defines the name of the
+        file where to write the browser driver logs. If the
+        ``service_log_path``  argument contain a  marker ``{index}``, it
+        will be automatically replaced with unique running
+        index preventing files to be overwritten. Indices start's from 1,
+        and how they are represented can be customized using Python's
+        [https://docs.python.org/3/library/string.html#format-string-syntax|
+        format string syntax].
 
         Examples:
         | `Open Browser` | http://example.com | Chrome  |
         | `Open Browser` | http://example.com | Firefox | alias=Firefox |
         | `Open Browser` | http://example.com | Edge    | remote_url=http://127.0.0.1:4444/wd/hub |
 
+        Alias examples:
+        | ${1_index} =    | `Open Browser` | http://example.com | Chrome  | alias=Chrome     | # Opens new browser because alias is new.         |
+        | ${2_index} =    | `Open Browser` | http://example.com | Firefox |                  | # Opens new browser because alias is not defined. |
+        | ${3_index} =    | `Open Browser` | http://example.com | Chrome  | alias=Chrome     | # Switches to the browser with Chrome alias.      |
+        | ${4_index} =    | `Open Browser` | http://example.com | Chrome  | alias=${1_index} | # Switches to the browser with Chrome alias.      |
+        | Should Be Equal | ${1_index}     | ${3_index}         |         |                  |                                                   |
+        | Should Be Equal | ${1_index}     | ${4_index}         |         |                  |                                                   |
+        | Should Be Equal | ${2_index}     | ${2}               |         |                  |                                                   |
+
+        Example when using
+        [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_chrome/selenium.webdriver.chrome.options.html#selenium.webdriver.chrome.options.Options|Chrome options]
+        method:
+        | `Open Browser` | http://example.com | Chrome                  | options=add_argument("--disable-popup-blocking"); add_argument("--ignore-certificate-errors") | # Sting format              |
+        |  ${options} =  |     Get Options    |                         |                                                                                               | # Selenium options instance |
+        | `Open Browser` | http://example.com | Chrome                  | options=${options}                                                                            |                             |
+
         If the provided configuration options are not enough, it is possible
         to use `Create Webdriver` to customize browser initialization even
         more.
+
+        Applying ``desired_capabilities`` argument also for local browser is
+        new in SeleniumLibrary 3.1.
+
+        Using ``alias`` to decide, is the new browser opened is new
+        in SeleniumLibrary 4.0. The ``options`` and ``service_log_path``
+        are new in SeleniumLibrary 4.0. Support for ``ff_profile_dir``
+        accepting instance of the `selenium.webdriver.FirefoxProfile`
+        is new in SeleniumLibrary 4.0.
         """
+        index = self.drivers.get_index(alias)
+        if index:
+            self.info('Using existing browser from index %s.' % index)
+            self.switch_browser(alias)
+            self.go_to(url)
+            return index
+        return self._make_new_browser(url, browser, alias, remote_url,
+                                      desired_capabilities, ff_profile_dir,
+                                      options, service_log_path)
+
+    def _make_new_browser(self, url, browser='firefox', alias=None,
+                          remote_url=False, desired_capabilities=None,
+                          ff_profile_dir=None, options=None, service_log_path=None):
         if is_truthy(remote_url):
             self.info("Opening browser '%s' to base url '%s' through "
                       "remote server at '%s'." % (browser, url, remote_url))
         else:
             self.info("Opening browser '%s' to base url '%s'." % (browser, url))
-        browser_name = browser
-        driver = self._make_driver(browser_name, desired_capabilities,
-                                   ff_profile_dir, remote_url)
+        driver = self._make_driver(browser, desired_capabilities,
+                                   ff_profile_dir, remote_url,
+                                   options, service_log_path)
+        driver = self._wrap_event_firing_webdriver(driver)
         try:
             driver.get(url)
         except Exception:
@@ -206,7 +306,14 @@ class BrowserManagementKeywords(LibraryComponent):
         driver = creation_func(**init_kwargs)
         self.debug("Created %s WebDriver instance with session id %s."
                    % (driver_name, driver.session_id))
+        driver = self._wrap_event_firing_webdriver(driver)
         return self.ctx.register_driver(driver, alias)
+
+    def _wrap_event_firing_webdriver(self, driver):
+        if not self.ctx.event_firing_webdriver:
+            return driver
+        self.debug('Wrapping driver to event_firing_webdriver.')
+        return EventFiringWebDriver(driver, self.ctx.event_firing_webdriver())
 
     @keyword
     def switch_browser(self, index_or_alias):
@@ -244,6 +351,14 @@ class BrowserManagementKeywords(LibraryComponent):
                    % self.driver.session_id)
 
     @keyword
+    def get_session_id(self):
+        """Returns the currently active browser session id.
+
+        New in SeleniumLibrary 3.2
+        """
+        return self.driver.session_id
+
+    @keyword
     def get_source(self):
         """Returns the entire HTML source of the current page or frame."""
         return self.driver.page_source
@@ -259,21 +374,41 @@ class BrowserManagementKeywords(LibraryComponent):
         return self.driver.current_url
 
     @keyword
-    def location_should_be(self, url):
-        """Verifies that current URL is exactly ``url``."""
+    def location_should_be(self, url, message=None):
+        """Verifies that current URL is exactly ``url``.
+
+        The ``url`` argument contains the exact url that should exist in browser.
+
+        The ``message`` argument can be used to override the default error
+        message.
+
+        ``message`` argument new in SeleniumLibrary 3.2.0.
+        """
         actual = self.get_location()
         if actual != url:
-            raise AssertionError("Location should have been '%s' but was "
-                                 "'%s'." % (url, actual))
+            if is_noney(message):
+                message = ("Location should have been '%s' but "
+                           "was '%s'." % (url, actual))
+            raise AssertionError(message)
         self.info("Current location is '%s'." % url)
 
     @keyword
-    def location_should_contain(self, expected):
-        """Verifies that current URL contains ``expected``."""
+    def location_should_contain(self, expected, message=None):
+        """Verifies that current URL contains ``expected``.
+
+        The ``expected`` argument contains the expected value in url.
+
+        The ``message`` argument can be used to override the default error
+        message.
+
+        ``message`` argument new in SeleniumLibrary 3.2.0.
+        """
         actual = self.get_location()
         if expected not in actual:
-            raise AssertionError("Location should have contained '%s' "
-                                 "but it was '%s'." % (expected, actual))
+            if is_noney(message):
+                message = ("Location should have contained '%s' but "
+                           "it was '%s'." % (expected, actual))
+            raise AssertionError(message)
         self.info("Current location contains '%s'." % expected)
 
     @keyword
@@ -288,8 +423,8 @@ class BrowserManagementKeywords(LibraryComponent):
         """Logs and returns the HTML source of the current page or frame.
 
         The ``loglevel`` argument defines the used log level. Valid log
-        levels are ``WARN``, ``INFO`` (default), ``DEBUG``, and ``NONE``
-        (no logging).
+        levels are ``WARN``, ``INFO`` (default), ``DEBUG``, ``TRACE``
+        and ``NONE`` (no logging).
         """
         source = self.get_source()
         self.log(source, loglevel)
@@ -303,12 +438,19 @@ class BrowserManagementKeywords(LibraryComponent):
         return title
 
     @keyword
-    def title_should_be(self, title):
-        """Verifies that current page title equals ``title``."""
+    def title_should_be(self, title, message=None):
+        """Verifies that current page title equals ``title``.
+
+        The ``message`` argument can be used to override the default error
+        message.
+
+        ``message`` argument is new in SeleniumLibrary 3.1.
+        """
         actual = self.get_title()
         if actual != title:
-            raise AssertionError("Title should have been '%s' but was '%s'."
-                                 % (title, actual))
+            if is_noney(message):
+                message = "Title should have been '%s' but was '%s'." % (title, actual)
+            raise AssertionError(message)
         self.info("Page title is '%s'." % title)
 
     @keyword
@@ -434,144 +576,16 @@ class BrowserManagementKeywords(LibraryComponent):
         """
         self.driver.implicitly_wait(timestr_to_secs(value))
 
-    def _get_driver_creation_function(self, browser_name):
-        try:
-            func_name = BROWSER_NAMES[browser_name]
-        except KeyError:
-            raise ValueError(browser_name + " is not a supported browser.")
-        return getattr(self, func_name)
-
-    def _make_driver(self, browser_name, desired_capabilities=None,
-                     profile_dir=None, remote=None):
-        creation_func = self._get_driver_creation_function(browser_name)
-        driver = creation_func(remote, desired_capabilities, profile_dir)
+    def _make_driver(self, browser, desired_capabilities=None, profile_dir=None,
+                     remote=None, options=None, service_log_path=None):
+        driver = WebDriverCreator(self.log_dir).create_driver(
+            browser=browser, desired_capabilities=desired_capabilities, remote_url=remote,
+            profile_dir=profile_dir, options=options, service_log_path=service_log_path)
         driver.set_script_timeout(self.ctx.timeout)
         driver.implicitly_wait(self.ctx.implicit_wait)
         if self.ctx.speed:
             self._monkey_patch_speed(driver)
         return driver
-
-    def _make_ff(self, remote, desired_capabilities, profile_dir, options=None):
-        if is_falsy(profile_dir):
-            profile = webdriver.FirefoxProfile()
-        else:
-            profile = webdriver.FirefoxProfile(profile_dir)
-        if is_truthy(remote):
-            driver = self._create_remote_web_driver(
-                webdriver.DesiredCapabilities.FIREFOX, remote,
-                desired_capabilities, profile, options=options)
-        else:
-            driver = webdriver.Firefox(firefox_profile=profile,
-                                       options=options,
-                                       **self._geckodriver_log_config)
-        return driver
-
-    def _make_headless_ff(self, remote, desired_capabilities, profile_dir):
-        options = webdriver.FirefoxOptions()
-        options.set_headless()
-        return self._make_ff(remote, desired_capabilities, profile_dir, options=options)
-
-    def _make_ie(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Ie, webdriver.DesiredCapabilities.INTERNETEXPLORER,
-            remote, desired_capabilities)
-
-    def _make_chrome(self, remote, desired_capabilities, profile_dir, options=None):
-        return self._generic_make_driver(
-            webdriver.Chrome, webdriver.DesiredCapabilities.CHROME, remote,
-            desired_capabilities, options=options)
-
-    def _make_headless_chrome(self, remote, desired_capabilities, profile_dir):
-        options = webdriver.ChromeOptions()
-        options.set_headless()
-        return self._make_chrome(remote, desired_capabilities, profile_dir, options)
-
-    def _make_opera(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Opera, webdriver.DesiredCapabilities.OPERA, remote,
-            desired_capabilities)
-
-    def _make_phantomjs(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.PhantomJS, webdriver.DesiredCapabilities.PHANTOMJS,
-            remote, desired_capabilities)
-
-    def _make_htmlunit(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Remote, webdriver.DesiredCapabilities.HTMLUNIT, remote,
-            desired_capabilities)
-
-    def _make_htmlunitwithjs(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Remote, webdriver.DesiredCapabilities.HTMLUNITWITHJS,
-            remote, desired_capabilities)
-
-    def _make_android(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Remote, webdriver.DesiredCapabilities.ANDROID, remote,
-            desired_capabilities)
-
-    def _make_iphone(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Remote, webdriver.DesiredCapabilities.IPHONE, remote,
-            desired_capabilities)
-
-    def _make_safari(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Safari, webdriver.DesiredCapabilities.SAFARI, remote,
-            desired_capabilities)
-
-    def _make_edge(self, remote, desired_capabilities, profile_dir):
-        return self._generic_make_driver(
-            webdriver.Edge, webdriver.DesiredCapabilities.EDGE, remote,
-            desired_capabilities)
-
-    def _generic_make_driver(self, webdriver_type, desired_cap_type,
-                             remote_url, desired_caps, options=None):
-        """Generic driver creation
-
-        Most of the make driver functions just call this function which
-        creates the appropriate driver
-        """
-        if is_falsy(remote_url):
-            if options is None:
-                driver = webdriver_type()
-            else:
-                driver = webdriver_type(options=options)
-        else:
-            driver = self._create_remote_web_driver(desired_cap_type,
-                                                    remote_url, desired_caps,
-                                                    options=options)
-        return driver
-
-    def _create_remote_web_driver(self, capabilities_type, remote_url,
-                                  desired_capabilities=None, profile=None,
-                                  options=None):
-        '''parses the string based desired_capabilities if neccessary and
-        creates the associated remote web driver'''
-
-        desired_capabilities_object = capabilities_type.copy()
-        if not isinstance(desired_capabilities, dict):
-            desired_capabilities = self._parse_capabilities_string(desired_capabilities)
-        desired_capabilities_object.update(desired_capabilities or {})
-        return webdriver.Remote(desired_capabilities=desired_capabilities_object,
-                command_executor=str(remote_url), browser_profile=profile,
-                options=options)
-
-    def _parse_capabilities_string(self, capabilities_string):
-        '''parses the string based desired_capabilities which should be in the form
-        key1:val1,key2:val2
-        '''
-        desired_capabilities = {}
-
-        if is_falsy(capabilities_string):
-            return desired_capabilities
-
-        for cap in capabilities_string.split(","):
-            (key, value) = cap.split(":", 1)
-            desired_capabilities[key.strip()] = value.strip()
-
-        return desired_capabilities
 
     def _monkey_patch_speed(self, driver):
         def execute(self, driver_command, params=None):
@@ -584,9 +598,3 @@ class BrowserManagementKeywords(LibraryComponent):
             driver._base_execute = driver.execute
             driver.execute = types.MethodType(execute, driver)
         driver._speed = self.ctx.speed
-
-    @property
-    def _geckodriver_log_config(self):
-        if SELENIUM_VERSION.major == '3':
-            return {'log_path': os.path.join(self.log_dir, 'geckodriver.log')}
-        return {}

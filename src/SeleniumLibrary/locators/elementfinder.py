@@ -39,8 +39,8 @@ class ElementFinder(ContextAware):
             'partial link': self._find_by_partial_link_text,
             'css': self._find_by_css_selector,
             'class': self._find_by_class_name,
-            'jquery': self._find_by_sizzle_selector,
-            'sizzle': self._find_by_sizzle_selector,
+            'jquery': self._find_by_jquery_selector,
+            'sizzle': self._find_by_jquery_selector,
             'tag': self._find_by_tag_name,
             'scLocator': self._find_by_sc_locator,
             'default': self._find_by_default
@@ -72,8 +72,8 @@ class ElementFinder(ContextAware):
         elements = strategy(criteria, tag, constraints,
                             parent=parent or self.driver)
         if required and not elements:
-            raise ElementNotFound("{} with locator '{}' not found."
-                                  .format(element_type, locator))
+            raise ElementNotFound("%s with locator '%s' not found."
+                                  % (element_type, locator))
         if first_only:
             if not elements:
                 return None
@@ -134,7 +134,7 @@ class ElementFinder(ContextAware):
             result = [result]
         return self._filter_elements(result, tag, constraints)
 
-    def _find_by_sizzle_selector(self, criteria, tag, constraints, parent):
+    def _find_by_jquery_selector(self, criteria, tag, constraints, parent):
         self._disallow_webelement_parent(parent)
         js = "return jQuery('%s').get();" % criteria.replace("'", "\\'")
         return self._filter_elements(

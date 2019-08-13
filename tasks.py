@@ -41,7 +41,9 @@ to install the latest available release or use
 to install exactly this version. Alternatively you can download the source
 distribution from PyPI_ and install it manually.
 
-SeleniumLibrary {version} was released on {date}.
+SeleniumLibrary {version} was released on {date}. SeleniumLibrary supports
+Python **ADD VERSIONS**, Selenium **ADD VERSIONS** and
+Robot Framework **ADD VERSIONS**.
 
 .. _Robot Framework: http://robotframework.org
 .. _SeleniumLibrary: https://github.com/robotframework/SeleniumLibrary
@@ -87,7 +89,7 @@ def set_version(ctx, version):
     - Final version like 3.0 or 3.1.2.
     - Alpha, beta or release candidate with ``a``, ``b`` or ``rc`` postfix,
       respectively, and an incremented number like 3.0a1 or 3.0.1rc1.
-    - Development version with ``.dev`` postix and an incremented number like
+    - Development version with ``.dev`` postfix and an incremented number like
       3.0.dev1 or 3.1a1.dev2.
 
     When the given version is ``dev``, the existing version number is updated

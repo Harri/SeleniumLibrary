@@ -16,6 +16,8 @@
 
 import time
 
+from selenium.common.exceptions import StaleElementReferenceException
+
 from SeleniumLibrary.base import LibraryComponent, keyword
 from SeleniumLibrary.errors import ElementNotFound
 from SeleniumLibrary.utils import is_noney, secs_to_timestr
@@ -50,6 +52,48 @@ class WaitingKeywords(LibraryComponent):
             "Condition '%s' did not become true in <TIMEOUT>." % condition,
             timeout, error
         )
+
+    @keyword
+    def wait_until_location_is(self, expected, timeout=None, message=None):
+        """Wait until that current URL is ``expected``.
+
+        The ``expected`` argument is the expected value in url.
+
+        Fails if ``timeout`` expires before the location is. See
+        the `Timeouts` section for more information about using timeouts
+        and their default value.
+
+        The ``message`` argument can be used to override the default error
+        message.
+
+        New in SeleniumLibrary 4.0
+        """
+
+        expected = str(expected)
+        self._wait_until(lambda: expected == self.driver.current_url,
+                         "Location did not is '%s' in <TIMEOUT>." % expected,
+                         timeout, message)
+
+    @keyword
+    def wait_until_location_contains(self, expected, timeout=None, message=None):
+        """Wait until that current URL contains ``expected``.
+
+        The ``expected`` argument contains the expected value in url.
+
+        Fails if ``timeout`` expires before the location contains. See
+        the `Timeouts` section for more information about using timeouts
+        and their default value.
+
+        The ``message`` argument can be used to override the default error
+        message.
+
+        New in SeleniumLibrary 4.0
+        """
+        expected = str(expected)
+        self._wait_until(lambda: expected in self.driver.current_url,
+                         "Location did not contain '%s' in <TIMEOUT>." % expected,
+                         timeout, message)
+
 
     @keyword
     def wait_until_page_contains(self, text, timeout=None, error=None):
@@ -129,7 +173,7 @@ class WaitingKeywords(LibraryComponent):
         ``error`` can be used to override the default error message.
         """
         self._wait_until(
-            lambda: self.find_element(locator).is_displayed(),
+            lambda: self.is_visible(locator),
             "Element '%s' not visible after <TIMEOUT>." % locator,
             timeout, error
         )
@@ -147,7 +191,7 @@ class WaitingKeywords(LibraryComponent):
         ``error`` can be used to override the default error message.
         """
         self._wait_until(
-            lambda: not self.find_element(locator).is_displayed(),
+            lambda: not self.is_visible(locator),
             "Element '%s' still visible after <TIMEOUT>." % locator,
             timeout, error
         )
@@ -228,6 +272,9 @@ class WaitingKeywords(LibraryComponent):
                     return
             except ElementNotFound as err:
                 not_found = str(err)
+            except StaleElementReferenceException as err:
+                self.info('Suppressing StaleElementReferenceException from Selenium.')
+                not_found = err
             else:
                 not_found = None
             time.sleep(0.2)

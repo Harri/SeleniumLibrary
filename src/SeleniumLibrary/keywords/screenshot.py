@@ -25,7 +25,7 @@ from SeleniumLibrary.utils import is_noney
 class ScreenshotKeywords(LibraryComponent):
 
     @keyword
-    def set_screenshot_directory(self, path, persist='DEPRECATED'):
+    def set_screenshot_directory(self, path):
         """Sets the directory for captured screenshots.
 
         ``path`` argument specifies the absolute path to a directory where
@@ -35,29 +35,23 @@ class ScreenshotKeywords(LibraryComponent):
         screenshots are saved to the same directory where Robot Framework's
         log file is written.
 
-        ``persist`` argument is deprecated and has no effect.
-
         The previous value is returned and can be used to restore
         the original value later if needed.
 
-        Deprecating ``persist`` and returning the previous value are new
-        in SeleniumLibrary 3.0.
+        Returning the previous value is new in SeleniumLibrary 3.0.
+        The persist argument was removed in SeleniumLibrary 3.2.
         """
         if is_noney(path):
             path = None
         else:
             path = os.path.abspath(path)
             self._create_directory(path)
-        if persist != 'DEPRECATED':
-            self.warn("'persist' argument to 'Set Screenshot Directory' "
-                      "keyword is deprecated and has no effect.")
         previous = self.ctx.screenshot_root_directory
         self.ctx.screenshot_root_directory = path
         return previous
 
     @keyword
-    def capture_page_screenshot(self,
-                                filename='selenium-screenshot-{index}.png'):
+    def capture_page_screenshot(self, filename='selenium-screenshot-{index}.png'):
         """Takes screenshot of the current page and embeds it into log file.
 
         ``filename`` argument specifies the name of the file to write the
@@ -71,7 +65,7 @@ class ScreenshotKeywords(LibraryComponent):
         ``{index}``, it will be automatically replaced with unique running
         index preventing files to be overwritten. Indices start from 1,
         and how they are represented can be customized using Python's
-        [https://docs.python.org/2/library/string.html#formatstrings|
+        [https://docs.python.org/3/library/string.html#format-string-syntax|
         format string syntax].
 
         An absolute path to the created screenshot file is returned.
@@ -96,11 +90,38 @@ class ScreenshotKeywords(LibraryComponent):
         self._create_directory(path)
         if not self.driver.save_screenshot(path):
             raise RuntimeError("Failed to save screenshot '{}'.".format(path))
-        # Image is shown on its own row and thus previous row is closed on
-        # purpose. Depending on Robot's log structure is a bit risky.
-        self.info('</td></tr><tr><td colspan="3">'
-                  '<a href="{src}"><img src="{src}" width="800px"></a>'
-                  .format(src=get_link_path(path, self.log_dir)), html=True)
+        self._embed_to_log(path, 800)
+        return path
+
+    @keyword
+    def capture_element_screenshot(self, locator, filename='selenium-element-screenshot-{index}.png'):
+        """Captures screenshot from the element identified by ``locator`` and embeds it into log file.
+
+        See `Capture Page Screenshot` for details about ``filename`` argument.
+        See the `Locating elements` section for details about the locator
+        syntax.
+
+        An absolute path to the created element screenshot is returned.
+
+        Support for capturing the screenshot from a element has limited support
+        among browser vendors. Please check the browser vendor driver documentation
+        does the browser support capturing a screenshot from a element.
+
+        New in SeleniumLibrary 3.3
+
+        Examples:
+        | `Capture Element Screenshot` | id:image_id |                                |
+        | `Capture Element Screenshot` | id:image_id | ${OUTPUTDIR}/id_image_id-1.png |
+        """
+        if not self.drivers.current:
+            self.info('Cannot capture screenshot from element because no browser is open.')
+            return
+        path = self._get_screenshot_path(filename)
+        self._create_directory(path)
+        element = self.find_element(locator, required=True)
+        if not element.screenshot(path):
+            raise RuntimeError("Failed to save element screenshot '{}'.".format(path))
+        self._embed_to_log(path, 400)
         return path
 
     def _get_screenshot_path(self, filename):
@@ -119,3 +140,10 @@ class ScreenshotKeywords(LibraryComponent):
         target_dir = os.path.dirname(path)
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
+
+    def _embed_to_log(self, path, width):
+        # Image is shown on its own row and thus previous row is closed on
+        # purpose. Depending on Robot's log structure is a bit risky.
+        self.info('</td></tr><tr><td colspan="3">'
+                  '<a href="{src}"><img src="{src}" width="{width}px"></a>'
+                  .format(src=get_link_path(path, self.log_dir), width=width), html=True)

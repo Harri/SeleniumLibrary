@@ -16,11 +16,8 @@
 
 from robot.utils import plural_or_not, secs_to_timestr, timestr_to_secs
 
-from .deprecated import Deprecated
 from .librarylistener import LibraryListener
-from .seleniumversion import SELENIUM_VERSION
-from .types import is_falsy, is_noney, is_string, is_truthy
-from .webdrivercache import WebDriverCache
+from .types import is_falsy, is_noney, is_string, is_truthy, PY3
 
 
 def escape_xpath_value(value):

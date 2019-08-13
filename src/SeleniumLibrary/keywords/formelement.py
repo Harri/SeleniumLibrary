@@ -18,7 +18,7 @@ import os
 
 from SeleniumLibrary.base import LibraryComponent, keyword
 from SeleniumLibrary.errors import ElementNotFound
-from SeleniumLibrary.utils import is_noney
+from SeleniumLibrary.utils import is_noney, is_truthy
 
 
 class FormElementKeywords(LibraryComponent):
@@ -65,7 +65,7 @@ class FormElementKeywords(LibraryComponent):
                                  "selected." % locator)
 
     @keyword
-    def page_should_contain_checkbox(self, locator, message=None, loglevel='INFO'):
+    def page_should_contain_checkbox(self, locator, message=None, loglevel='TRACE'):
         """Verifies checkbox ``locator`` is found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -77,7 +77,7 @@ class FormElementKeywords(LibraryComponent):
         self.assert_page_contains(locator, 'checkbox', message, loglevel)
 
     @keyword
-    def page_should_not_contain_checkbox(self, locator, message=None, loglevel='INFO'):
+    def page_should_not_contain_checkbox(self, locator, message=None, loglevel='TRACE'):
         """Verifies checkbox ``locator`` is not found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -117,7 +117,7 @@ class FormElementKeywords(LibraryComponent):
             element.click()
 
     @keyword
-    def page_should_contain_radio_button(self, locator, message=None, loglevel='INFO'):
+    def page_should_contain_radio_button(self, locator, message=None, loglevel='TRACE'):
         """Verifies radio button ``locator`` is found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -130,7 +130,7 @@ class FormElementKeywords(LibraryComponent):
         self.assert_page_contains(locator, 'radio button', message, loglevel)
 
     @keyword
-    def page_should_not_contain_radio_button(self, locator, message=None, loglevel='INFO'):
+    def page_should_not_contain_radio_button(self, locator, message=None, loglevel='TRACE'):
         """Verifies radio button ``locator`` is not found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -196,23 +196,29 @@ class FormElementKeywords(LibraryComponent):
         """Inputs the ``file_path`` into file input field ``locator``.
 
         This keyword is most often used to input files into upload forms.
-        The file specified with ``file_path`` must be available on machine
-        where tests are executed.
+        Keyword  does not check ``file_path`` is the file or folder
+        available on machine where tests are executed. If the ``file_path``
+        point sot a file and when using Selenium Grid, Selenium will,
+        [https://seleniumhq.github.io/selenium/docs/api/py/webdriver_remote/selenium.webdriver.remote.command.html?highlight=upload#selenium.webdriver.remote.command.Command.UPLOAD_FILE|magically],
+        transfer the file from the machine where test are executed
+        to the Selenium Grid node where the browser is running. 
+        Then Selenium will send the file path, from to node file 
+        system, to the browser.
+
+        ``file_path`` is not checked is new in SeleniumLibrary 4.0
 
         Example:
         | `Choose File` | my_upload_field | ${CURDIR}/trades.csv |
         """
-        if not os.path.isfile(file_path):
-            raise ValueError("File '%s' does not exist on the local file "
-                             "system." % file_path)
+        self.info('Sending %s to browser.' % os.path.abspath(file_path))
         self.find_element(locator).send_keys(file_path)
 
     @keyword
-    def input_password(self, locator, password):
+    def input_password(self, locator, password, clear=True):
         """Types the given password into text field identified by ``locator``.
 
         See the `Locating elements` section for details about the locator
-        syntax.
+        syntax. See `Input Text` for ``clear`` argument details.
 
         Difference compared to `Input Text` is that this keyword does not
         log the given password on the INFO level. Notice that if you use
@@ -230,25 +236,40 @@ class FormElementKeywords(LibraryComponent):
         be seen there. Additionally Robot Framework logs all arguments using
         the TRACE level. Tests must thus not be executed using level below
         INFO if password should not be logged in any format.
+
+        The `clear` argument is new in SeleniumLibrary 4.0
         """
         self.info("Typing password into text field '%s'." % locator)
-        self._input_text_into_text_field(locator, password)
+        self._input_text_into_text_field(locator, password, clear)
 
     @keyword
-    def input_text(self, locator, text):
+    def input_text(self, locator, text, clear=True):
         """Types the given ``text`` into text field identified by ``locator``.
 
-        Use `Input Password` if you do not want the given ``text`` to be
-        logged.
+        When ``clear`` is true, the input element is cleared before
+        text is typed to the element. When false, the previous text
+        is not cleared from the element. Use `Input Password` if you
+        do not want the given ``text`` to be logged.
+
+        If [https://github.com/SeleniumHQ/selenium/wiki/Grid2|Selenium Grid]
+        is used and the ``text`` argument points to a file in the file system,
+        then this keyword prevents the Selenium to transfer the file to the
+        Selenium Grid hub. Instead this keyword will send the ``text`` string
+        as is to the element. If file should be transferred to the hub and
+        upload should be performed, please use `Choose File` keyword.
 
         See the `Locating elements` section for details about the locator
-        syntax.
+        syntax. See the `Boolean arguments` section how Boolean values are
+        handled.
+
+        Disabling the file upload the Selenium Grid node and the `clear`
+        argument are new in SeleniumLibrary 4.0
         """
         self.info("Typing text '%s' into text field '%s'." % (text, locator))
-        self._input_text_into_text_field(locator, text)
+        self._input_text_into_text_field(locator, text, clear)
 
     @keyword
-    def page_should_contain_textfield(self, locator, message=None, loglevel='INFO'):
+    def page_should_contain_textfield(self, locator, message=None, loglevel='TRACE'):
         """Verifies text field ``locator`` is found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -260,7 +281,7 @@ class FormElementKeywords(LibraryComponent):
         self.assert_page_contains(locator, 'text field', message, loglevel)
 
     @keyword
-    def page_should_not_contain_textfield(self, locator, message=None, loglevel='INFO'):
+    def page_should_not_contain_textfield(self, locator, message=None, loglevel='TRACE'):
         """Verifies text field ``locator`` is not found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -340,21 +361,7 @@ class FormElementKeywords(LibraryComponent):
         self.info("Content of text area '%s' is '%s'." % (locator, expected))
 
     @keyword
-    def click_button(self, locator):
-        """Clicks button identified by ``locator``.
-
-        See the `Locating elements` section for details about the locator
-        syntax. When using the default locator strategy, buttons are
-        searched using ``id``, ``name`` and ``value``.
-        """
-        self.info("Clicking button '%s'." % locator)
-        element = self.find_element(locator, tag='input', required=False)
-        if not element:
-            element = self.find_element(locator, tag='button')
-        element.click()
-
-    @keyword
-    def page_should_contain_button(self, locator, message=None, loglevel='INFO'):
+    def page_should_contain_button(self, locator, message=None, loglevel='TRACE'):
         """Verifies button ``locator`` is found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -370,7 +377,7 @@ class FormElementKeywords(LibraryComponent):
             self.assert_page_contains(locator, 'button', message, loglevel)
 
     @keyword
-    def page_should_not_contain_button(self, locator, message=None, loglevel='INFO'):
+    def page_should_not_contain_button(self, locator, message=None, loglevel='TRACE'):
         """Verifies button ``locator`` is not found from current page.
 
         See `Page Should Contain Element` for explanation about ``message``
@@ -414,7 +421,8 @@ class FormElementKeywords(LibraryComponent):
                 return element.get_attribute('value')
         return None
 
-    def _input_text_into_text_field(self, locator, text):
+    def _input_text_into_text_field(self, locator, text, clear):
         element = self.find_element(locator)
-        element.clear()
+        if is_truthy(clear):
+            element.clear()
         element.send_keys(text)
